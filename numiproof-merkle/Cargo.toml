@@ -1,0 +1,10 @@
+# File: numiproof-merkle/Cargo.toml
+[package]
+name = "numiproof-merkle"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+numiproof-hash = { path = "../numiproof-hash" }
+serde = { version = "1", features = ["derive"] }

@@ -1,0 +1,11 @@
+# File: Cargo.toml
+# Numan Thabit
+[workspace]
+members = [
+  "numiproof-hash",
+  "numiproof-merkle",
+  "numiproof-air",
+  "numiproof-proof",
+  "numiproof-cli",
+]
+resolver = "2"
