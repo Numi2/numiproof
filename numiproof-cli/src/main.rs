@@ -61,11 +61,11 @@ fn main() {
             let bytes = fs::read(&current_proof).expect("read");
             let proof: numiproof_proof::Proof = bincode::deserialize(&bytes).expect("decode");
             let cur = proof.proof_digest;
-            let prev = prev_hex
+            let prev_bytes = prev_hex
                 .as_ref()
-                .and_then(|h| hex::decode(h).ok())
-                .and_then(|v| v.try_into().ok());
-            let agg = accumulate(prev, cur);
+                .and_then(|h| hex::decode(h).ok());
+            let prev = prev_bytes.as_deref();
+            let agg = accumulate(prev, &cur);
             println!("{}", hex::encode(agg));
         }
     }

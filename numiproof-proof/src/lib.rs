@@ -1,8 +1,8 @@
 // File: numiproof-proof/src/lib.rs
 use numiproof_air::{Air, row_to_bytes, FibPublic, FibonacciAir};
-use numiproof_hash::{h_many, shake256_384, Transcript, DIGEST_LEN};
+use numiproof_hash::{h_many, shake256_384, Transcript};
 use numiproof_merkle::MerkleTree;
-use rand::Rng;
+use rand::RngCore;
 use serde::{Serialize, Deserialize};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -10,20 +10,20 @@ pub struct Opening {
     pub idx: usize,
     pub row: Vec<u8>,
     pub next_row: Option<Vec<u8>>,
-    pub path_row: Vec<[u8; DIGEST_LEN]>,
-    pub path_next: Option<Vec<[u8; DIGEST_LEN]>>,
+    pub path_row: Vec<Vec<u8>>,
+    pub path_next: Option<Vec<Vec<u8>>>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Proof {
     pub air_id: String,
     pub pub_input_enc: Vec<u8>,
-    pub merkle_root: [u8; DIGEST_LEN],
+    pub merkle_root: Vec<u8>,
     pub n_rows: usize,
     pub n_cols: usize,
     pub queries: usize,
     pub openings: Vec<Opening>,
-    pub proof_digest: [u8; DIGEST_LEN],
+    pub proof_digest: Vec<u8>,
 }
 
 pub struct Prover {
@@ -44,7 +44,7 @@ impl Prover {
         for i in 0..n {
             let row = vec![cols[0][i], cols[1][i]];
             let bytes = row_to_bytes(&row);
-            let leaf = shake256_384(&h_many("row", &[&bytes]));
+            let leaf = shake256_384(&h_many("row", &[&bytes])).to_vec();
             leaves.push(leaf);
             rows.push(bytes);
         }
@@ -75,11 +75,11 @@ impl Prover {
             });
         }
 
-        let proof_digest = h_many("proof.digest", &[&root, &pub_inp_enc, &(self.queries as u64).to_le_bytes()]);
+        let proof_digest = h_many("proof.digest", &[&root, &pub_inp_enc, &(self.queries as u64).to_le_bytes()]).to_vec();
 
         Proof {
             air_id: air.id().to_string(),
-            pub_input_enc,
+            pub_input_enc: pub_inp_enc,
             merkle_root: root,
             n_rows: n,
             n_cols: air.n_cols(),
@@ -108,19 +108,25 @@ impl Verifier {
             if o.idx != expected_idx { return false; }
 
             // Verify Merkle openings
-            let leaf = shake256_384(&h_many("row", &[&o.row]));
-            if !numiproof_merkle::MerkleTree::verify(proof.merkle_root, o.idx, leaf, &o.path_row) {
+            let leaf = shake256_384(&h_many("row", &[&o.row])).to_vec();
+            if !numiproof_merkle::MerkleTree::verify(&proof.merkle_root, o.idx, &leaf, &o.path_row) {
                 return false;
             }
-            let row = bytes_to_u64s(&o.row)?;
+            let row = match bytes_to_u64s(&o.row) {
+                Some(r) => r,
+                None => return false,
+            };
             let next = match (&o.next_row, &o.path_next) {
                 (Some(b), Some(path)) => {
                     let j = o.idx + 1;
-                    let nleaf = shake256_384(&h_many("row", &[b]));
-                    if !numiproof_merkle::MerkleTree::verify(proof.merkle_root, j, nleaf, path) {
+                    let nleaf = shake256_384(&h_many("row", &[b])).to_vec();
+                    if !numiproof_merkle::MerkleTree::verify(&proof.merkle_root, j, &nleaf, path) {
                         return false;
                     }
-                    Some(bytes_to_u64s(b)?)
+                    match bytes_to_u64s(b) {
+                        Some(r) => Some(r),
+                        None => return false,
+                    }
                 },
                 (None, None) => None,
                 _ => return false
@@ -142,10 +148,10 @@ fn bytes_to_u64s(b: &[u8]) -> Option<Vec<u64>> {
 }
 
 /// Hash-chain accumulator for "recursive" aggregation of proofs.
-pub fn accumulate(prev: Option<[u8; DIGEST_LEN]>, cur: [u8; DIGEST_LEN]) -> [u8; DIGEST_LEN] {
+pub fn accumulate(prev: Option<&[u8]>, cur: &[u8]) -> Vec<u8> {
     match prev {
-        Some(p) => h_many("accumulator", &[&p, &cur]),
-        None => h_many("accumulator", &[&cur]),
+        Some(p) => h_many("accumulator", &[p, cur]).to_vec(),
+        None => h_many("accumulator", &[cur]).to_vec(),
     }
 }
 
