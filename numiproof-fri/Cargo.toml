@@ -1,0 +1,13 @@
+[package]
+name = "numiproof-fri"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+numiproof-field = { path = "../numiproof-field" }
+numiproof-hash = { path = "../numiproof-hash" }
+numiproof-merkle = { path = "../numiproof-merkle" }
+serde = { version = "1", features = ["derive"] }
+bincode = "1"
+
+

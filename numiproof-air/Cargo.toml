@@ -8,3 +8,4 @@ license = " Apache-2.0"
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 bincode = "1"
+numiproof-field = { path = "../numiproof-field" }

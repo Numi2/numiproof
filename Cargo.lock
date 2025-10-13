@@ -210,6 +210,7 @@ name = "numiproof-air"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "numiproof-field",
  "serde",
 ]
 
@@ -222,6 +223,25 @@ dependencies = [
  "hex",
  "numiproof-air",
  "numiproof-proof",
+]
+
+[[package]]
+name = "numiproof-field"
+version = "0.1.0"
+dependencies = [
+ "rand",
+ "serde",
+]
+
+[[package]]
+name = "numiproof-fri"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "numiproof-field",
+ "numiproof-hash",
+ "numiproof-merkle",
+ "serde",
 ]
 
 [[package]]
@@ -242,13 +262,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "numiproof-poly"
+version = "0.1.0"
+dependencies = [
+ "numiproof-field",
+ "serde",
+]
+
+[[package]]
 name = "numiproof-proof"
 version = "0.1.0"
 dependencies = [
  "bincode",
  "numiproof-air",
+ "numiproof-field",
+ "numiproof-fri",
  "numiproof-hash",
  "numiproof-merkle",
+ "numiproof-poly",
  "rand",
  "serde",
 ]

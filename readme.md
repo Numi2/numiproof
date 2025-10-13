@@ -11,6 +11,23 @@ Design goals
 	•	Rollup‑ready verifier and DA model.
 	•	No sender/receiver leakage on L1.
 
+Current status
+	•	Prime field (Goldilocks) replaces u64; AIR runs over field elements.
+	•	FFT-based LDE implemented; FRI-style Merkle oracle commitments with masking integrated.
+	•	Zero-knowledge masks z_base(X)·r(X) applied to witness oracles.
+	•	Demo FRI folding round with transcript-derived challenge and pair openings.
+	•	Hash-chain accumulator remains for recursion; verifier-inside-AIR planned.
+
+Edge details
+	•	Padding duplicates the last leaf to reach a power of two.
+	•	Last-row boundary condition enforces the claimed number of steps.
+	•	All serialization uses bincode. Public input is bound into transcript and digest.
+
+How to extend to a real system
+	•	Generalize to multi-column LDE and DEEP-FRI with multiple rounds and composition polynomial.
+	•	Replace row Merkle with commitments to composition/evaluation oracles and verify low-degree proximity.
+	•	Implement true recursion: embed the STARK verifier inside an AIR and aggregate proofs.
+
 Security basis
 	•	Hash‑only assumptions (random‑oracle model). zk‑STARKs are transparent and widely regarded as PQ‑resistant since they avoid algebraic groups broken by Shor.  ￼
 	•	Polynomial commitments via FRI/DEEP‑FRI for proximity testing and improved soundness.  ￼

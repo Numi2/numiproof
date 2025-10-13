@@ -50,6 +50,8 @@ fn main() {
             let enc = bincode::serialize(&proof).expect("encode");
             fs::write(&out, enc).expect("write");
             println!("wrote {}", out.display());
+            if let Some(ref fri) = proof.fri_commitment { println!("fri_root={} len={}", hex::encode(&fri.oracle.root), fri.oracle.len); }
+            if let Some(ref rounds) = proof.fri_rounds { for (i, r) in rounds.rounds.iter().enumerate() { println!("fri_round[{}]_root={} len={}", i, hex::encode(&r.root), r.len); } }
         }
         Cmd::VerifyFib { proof } => {
             let bytes = fs::read(&proof).expect("read");

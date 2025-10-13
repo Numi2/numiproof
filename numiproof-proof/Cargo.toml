@@ -9,6 +9,9 @@ license = " Apache-2.0"
 numiproof-hash = { path = "../numiproof-hash" }
 numiproof-merkle = { path = "../numiproof-merkle" }
 numiproof-air = { path = "../numiproof-air" }
+numiproof-field = { path = "../numiproof-field" }
+numiproof-poly = { path = "../numiproof-poly" }
+numiproof-fri = { path = "../numiproof-fri" }
 serde = { version = "1", features = ["derive"] }
 bincode = "1"
 rand = "0.8"

@@ -6,6 +6,9 @@ members = [
   "numiproof-merkle",
   "numiproof-air",
   "numiproof-proof",
+  "numiproof-field",
+  "numiproof-poly",
+  "numiproof-fri",
   "numiproof-cli",
 ]
 resolver = "2"

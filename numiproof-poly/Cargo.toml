@@ -1,0 +1,10 @@
+[package]
+name = "numiproof-poly"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+numiproof-field = { path = "../numiproof-field" }
+serde = { version = "1", features = ["derive"] }
+
+
