@@ -9,5 +9,6 @@ numiproof-hash = { path = "../numiproof-hash" }
 numiproof-merkle = { path = "../numiproof-merkle" }
 serde = { version = "1", features = ["derive"] }
 bincode = "1"
+rayon = "1"
 
 

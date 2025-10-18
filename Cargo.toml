@@ -10,5 +10,8 @@ members = [
   "numiproof-poly",
   "numiproof-fri",
   "numiproof-cli",
+  "numiproof-recursion",
+  "numiproof-privacy",
+  "numiproof-spec",
 ]
 resolver = "2"

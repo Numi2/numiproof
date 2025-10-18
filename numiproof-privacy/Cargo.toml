@@ -1,0 +1,12 @@
+[package]
+name = "numiproof-privacy"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+numiproof-hash = { path = "../numiproof-hash" }
+numiproof-field = { path = "../numiproof-field" }
+serde = { version = "1", features = ["derive"] }
+rand = "0.8"
+sha3 = "0.10"
+

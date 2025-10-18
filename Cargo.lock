@@ -266,6 +266,7 @@ name = "numiproof-poly"
 version = "0.1.0"
 dependencies = [
  "numiproof-field",
+ "rand",
  "serde",
 ]
 

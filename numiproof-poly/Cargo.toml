@@ -8,3 +8,5 @@ numiproof-field = { path = "../numiproof-field" }
 serde = { version = "1", features = ["derive"] }
 
 
+[dev-dependencies]
+rand = "0.8"

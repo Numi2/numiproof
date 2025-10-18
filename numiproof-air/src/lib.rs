@@ -10,6 +10,9 @@ pub trait Air {
     fn public_input(&self) -> Self::PublicInput;
     fn gen_trace(&self) -> Vec<Vec<Fp>>; // column-major over field
     fn check_row(i: usize, row: &[Fp], next: Option<&[Fp]>, pub_inp: &Self::PublicInput) -> bool;
+    /// Evaluate constraint polynomials for a given row (and optional next row).
+    /// Implementations should return zero when constraints are satisfied.
+    fn eval_constraints(&self, i: usize, row: &[Fp], next: Option<&[Fp]>, pub_inp: &Self::PublicInput) -> Vec<Fp>;
 }
 
 /// Simple Fibonacci AIR over u64 with wrapping arithmetic.
@@ -70,10 +73,66 @@ impl Air for FibonacciAir {
         }
         true
     }
+    fn eval_constraints(&self, i: usize, row: &[Fp], next: Option<&[Fp]>, pub_inp: &Self::PublicInput) -> Vec<Fp> {
+        if let Some(nxt) = next {
+            // Transition constraints
+            let c0 = nxt[0] - row[1];
+            let c1 = nxt[1] - (row[0] + row[1]);
+            vec![c0, c1]
+        } else {
+            // Last-row boundary constraint
+            let c_end = row[0] - Fp::new(pub_inp.expected_first);
+            // Provide two entries to match column count for simple composers
+            vec![c_end, Fp::zero()]
+        }
+    }
 }
 
 pub fn row_to_bytes(row: &[Fp]) -> Vec<u8> {
     let mut v = Vec::with_capacity(8*row.len());
     for &x in row { v.extend_from_slice(&x.to_u64().to_le_bytes()); }
     v
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fib_trace_and_public_input_consistency() {
+        let air = FibonacciAir::new(2, 3, 16);
+        let pub_inp = air.public_input();
+        assert_eq!(pub_inp.steps as usize, air.steps);
+        assert_eq!(pub_inp.a0, air.a0.to_u64());
+        assert_eq!(pub_inp.a1, air.a1.to_u64());
+        let trace = air.gen_trace();
+        assert_eq!(trace.len(), 2);
+        assert_eq!(trace[0].len(), air.trace_len());
+        assert_eq!(trace[1].len(), air.trace_len());
+        // First row equals inputs
+        assert_eq!(trace[0][0].to_u64(), pub_inp.a0);
+        assert_eq!(trace[1][0].to_u64(), pub_inp.a1);
+        // Check last row boundary via check_row
+        let last_i = air.trace_len()-1;
+        let last_row = [trace[0][last_i], trace[1][last_i]];
+        assert!(FibonacciAir::check_row(last_i, &last_row, None, &pub_inp));
+    }
+
+    #[test]
+    fn check_row_enforces_transition() {
+        let air = FibonacciAir::new(1, 1, 8);
+        let pub_inp = air.public_input();
+        let trace = air.gen_trace();
+        for i in 0..air.trace_len()-1 {
+            let row = [trace[0][i], trace[1][i]];
+            let nxt = [trace[0][i+1], trace[1][i+1]];
+            assert!(FibonacciAir::check_row(i, &row, Some(&nxt), &pub_inp));
+        }
+        // Tamper next row to break constraint
+        let i = 2;
+        let row = [trace[0][i], trace[1][i]];
+        let mut bad_next = [trace[0][i+1], trace[1][i+1]];
+        bad_next[1] = bad_next[1] + Fp::one();
+        assert!(!FibonacciAir::check_row(i, &row, Some(&bad_next), &pub_inp));
+    }
 }

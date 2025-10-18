@@ -9,5 +9,7 @@ license = " Apache-2.0"
 clap = { version = "4", features = ["derive"] }
 numiproof-air = { path = "../numiproof-air" }
 numiproof-proof = { path = "../numiproof-proof" }
+numiproof-privacy = { path = "../numiproof-privacy" }
+numiproof-spec = { path = "../numiproof-spec" }
 bincode = "1"
 hex = "0.4"

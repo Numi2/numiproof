@@ -45,27 +45,8 @@ impl Fp {
 
 #[inline]
 fn reduce_u128(x: u128) -> u64 {
-    // Reduction modulo 2^64 - 2^32 + 1 using lazy reduction.
-    // Split x into hi:lo 64-bit limbs.
-    let lo = x as u64;
-    let hi = (x >> 64) as u64;
-    // For modulus m = 2^64 - 2^32 + 1, we can use: hi*2^64 ≡ hi*(2^32 - 1) (mod m)
-    // So x ≡ lo + hi*(2^32 - 1) = lo + (hi<<32) - hi
-    let t = (lo as u128) + ((hi as u128) << 32) - (hi as u128);
-    // t may be slightly above/below range; fold once more if needed
-    let mut r = t as u64;
-    // Because subtraction could underflow in u128 cast to u64, correct using modulus identity
-    // Bring into canonical range with at most 2 corrections
-    if t >> 64 != 0 {
-        // If t overflowed 64 bits, fold again
-        let hi2 = (t >> 64) as u64;
-        let lo2 = r;
-        let t2 = (lo2 as u128) + ((hi2 as u128) << 32) - (hi2 as u128);
-        r = t2 as u64;
-    }
-    // Final conditional reductions
-    while r >= MODULUS { r = r.wrapping_sub(MODULUS); }
-    r
+    // Correct reduction using native 128-bit remainder; fast enough for tests and correctness-critical.
+    (x % (MODULUS as u128)) as u64
 }
 
 impl Add for Fp {
@@ -106,11 +87,16 @@ impl Neg for Fp {
 
 /// Compute a principal 2^k root of unity and its table of powers.
 pub fn root_of_unity(power: u32) -> Fp {
-    // Known 2-adicity for Goldilocks is 32. Generator of 2^32 subgroup:
-    // Use primitive root 7; w = 7^((p-1)/2^power)
-    let g = Fp(7);
-    let exp = (MODULUS as u128 - 1) >> power;
-    g.pow(exp)
+    // Known 2-adicity for Goldilocks is 32. Use a known generator of the 2-adic subgroup.
+    // A commonly used root is 7 for the full multiplicative group; however, to avoid assumptions,
+    // we exponentiate a fixed generator to obtain a principal 2^power root.
+    // Choose generator g = 7 (commonly used for Goldilocks) and derive w = g^((p-1)/2^power)
+    let g = Fp::new(7);
+    let exp = ((MODULUS as u128) - 1) >> power;
+    let w = g.pow(exp);
+    // As a safety net in debug/tests, assert expected order
+    debug_assert_eq!(w.pow(1u128 << power), Fp::one());
+    w
 }
 
 pub fn bit_reverse(mut x: usize, bits: u32) -> usize {
@@ -122,6 +108,8 @@ pub fn bit_reverse(mut x: usize, bits: u32) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::{Rng, SeedableRng};
+    use rand::rngs::StdRng;
     #[test]
     fn field_add_mul() {
         let a = Fp::new(123);
@@ -139,6 +127,80 @@ mod tests {
         assert_eq!(w.pow(1u128<<20), Fp::one());
         // w^(2^19) != 1 (primitive)
         assert_ne!(w.pow(1u128<<19), Fp::one());
+    }
+
+    #[test]
+    fn reduce_u128_matches_mod() {
+        let mut rng = StdRng::seed_from_u64(0xC0FFEE);
+        for _ in 0..2000 {
+            let hi: u64 = rng.gen();
+            let lo: u64 = rng.gen();
+            let x = ((hi as u128) << 64) | (lo as u128);
+            let r = super::reduce_u128(x);
+            let e = (x % (MODULUS as u128)) as u64;
+            assert_eq!(r, e);
+        }
+    }
+
+    #[test]
+    fn mul_matches_big_mod() {
+        let mut rng = StdRng::seed_from_u64(42);
+        for _ in 0..2000 {
+            let a: u64 = rng.gen();
+            let b: u64 = rng.gen();
+            let fa = Fp::new(a);
+            let fb = Fp::new(b);
+            let prod = (a as u128) * (b as u128);
+            let expected = (prod % (MODULUS as u128)) as u64;
+            assert_eq!((fa * fb).0, expected);
+        }
+    }
+
+    #[test]
+    fn inverse_property() {
+        let mut rng = StdRng::seed_from_u64(7);
+        for _ in 0..2000 {
+            let mut a: u64 = rng.gen();
+            // avoid zero
+            if a % MODULUS == 0 { a = 1; }
+            let fa = Fp::new(a);
+            assert_eq!(fa * fa.inv(), Fp::one());
+        }
+    }
+
+    #[test]
+    fn pow_identity() {
+        let mut rng = StdRng::seed_from_u64(999);
+        for _ in 0..512 {
+            let a = Fp::new(rng.gen());
+            assert_eq!(a.pow(0), Fp::one());
+            assert_eq!(a.pow(1), a);
+            assert_eq!(a.pow(2), a * a);
+        }
+    }
+
+    #[test]
+    fn roots_across_powers() {
+        // Check a range of powers for primitive property
+        for power in 8..=28 {
+            let w = root_of_unity(power);
+            assert_eq!(w.pow(1u128 << power), Fp::one());
+            if power > 0 { assert_ne!(w.pow(1u128 << (power-1)), Fp::one()); }
+        }
+    }
+
+    #[test]
+    fn bit_reverse_permutation_roundtrip() {
+        for bits in 1..=12 {
+            let n = 1usize << bits;
+            let mut seen = vec![false; n];
+            for i in 0..n {
+                let j = bit_reverse(i, bits as u32);
+                assert!(j < n);
+                seen[j] = true;
+            }
+            assert!(seen.into_iter().all(|v| v));
+        }
     }
 }
 

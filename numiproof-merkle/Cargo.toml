@@ -8,3 +8,4 @@ license = " Apache-2.0"
 [dependencies]
 numiproof-hash = { path = "../numiproof-hash" }
 serde = { version = "1", features = ["derive"] }
+rayon = "1"

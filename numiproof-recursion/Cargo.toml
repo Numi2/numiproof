@@ -1,0 +1,15 @@
+[package]
+name = "numiproof-recursion"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+numiproof-air = { path = "../numiproof-air" }
+numiproof-field = { path = "../numiproof-field" }
+numiproof-hash = { path = "../numiproof-hash" }
+numiproof-fri = { path = "../numiproof-fri" }
+numiproof-merkle = { path = "../numiproof-merkle" }
+numiproof-proof = { path = "../numiproof-proof" }
+serde = { version = "1", features = ["derive"] }
+bincode = "1"
+

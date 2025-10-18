@@ -5,6 +5,13 @@ use serde::{Serialize, Deserialize};
 
 pub const DIGEST_LEN: usize = 48; // 384-bit output
 
+// Domain labels
+pub const DOM_ROW: &str = "row";
+pub const DOM_MERKLE_NODE: &str = "merkle.node";
+pub const DOM_FRI_LEAF: &str = "fri.leaf";
+pub const DOM_PROOF_DIGEST: &str = "proof.digest";
+pub const DOM_ACCUMULATOR: &str = "accumulator";
+
 #[inline]
 pub fn shake256_384(data: &[u8]) -> [u8; DIGEST_LEN] {
     let mut hasher = Shake256::default();
@@ -75,5 +82,40 @@ impl Transcript {
     pub fn rng(&self) -> StdRng {
         let seed = self.challenge_bytes(32);
         StdRng::from_seed(seed.as_slice().try_into().unwrap())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shake256_384_length_and_differs() {
+        let a = shake256_384(b"hello");
+        let b = shake256_384(b"world");
+        assert_eq!(a.len(), DIGEST_LEN);
+        assert_eq!(b.len(), DIGEST_LEN);
+        assert_ne!(a.to_vec(), b.to_vec());
+    }
+
+    #[test]
+    fn h2_and_hmany_domain_separation() {
+        let x = h2("domain", b"a", b"b");
+        let y = h2("domain2", b"a", b"b");
+        assert_ne!(x.to_vec(), y.to_vec());
+        let m1 = h_many("domain", &[b"a", b"b"]);
+        let m2 = h_many("domain", &[b"ab"]);
+        assert_ne!(m1.to_vec(), m2.to_vec());
+    }
+
+    #[test]
+    fn transcript_absorb_and_challenge_changes() {
+        let mut t1 = Transcript::new("ns");
+        let mut t2 = Transcript::new("ns");
+        t1.absorb("k", b"v");
+        t2.absorb("k", b"v");
+        assert_eq!(t1.challenge_bytes(16), t2.challenge_bytes(16));
+        t1.absorb("k", b"v2");
+        assert_ne!(t1.challenge_bytes(16), t2.challenge_bytes(16));
     }
 }

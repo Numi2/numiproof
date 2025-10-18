@@ -151,6 +151,8 @@ pub fn eval_poly_on_domain(coeffs: &[Fp], domain_size: usize) -> Vec<Fp> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::{Rng, SeedableRng};
+    use rand::rngs::StdRng;
     #[test]
     fn poly_eval_matches_fft_point() {
         // p(x) = 3 + 2x + x^2
@@ -166,6 +168,71 @@ mod tests {
         for ev in evals.iter().take(n) {
             assert_eq!(p.eval(x), *ev);
             x *= w;
+        }
+    }
+
+    #[test]
+    fn fft_ifft_roundtrip() {
+        let mut rng = StdRng::seed_from_u64(0xABCD_EF01);
+        for log_n in 3..=10 {
+            let n = 1usize << log_n;
+            let mut a = (0..n).map(|_| Fp::new(rng.gen())).collect::<Vec<_>>();
+            let w = root_of_unity(log_n);
+            let original = a.clone();
+            fft_in_place(&mut a, w);
+            ifft_in_place(&mut a, w);
+            assert_eq!(a, original);
+        }
+    }
+
+    #[test]
+    fn lde_from_evals_consistency_at_base_points() {
+        // For a base-domain vector, the extended domain at coset starts (step size) should match base
+        let mut rng = StdRng::seed_from_u64(12345);
+        for log_n in 3..=8 {
+            let n = 1usize << log_n;
+            let base: Vec<Fp> = (0..n).map(|_| Fp::new(rng.gen())).collect();
+            // Interpret base as evaluations of some polynomial of degree < n
+            // Convert to coeffs and back to evaluations as a reference
+            let w = root_of_unity(log_n);
+            let mut coeffs = base.clone();
+            // Inverse FFT to get coeffs from evals
+            ifft_in_place(&mut coeffs, w);
+            // Extend evaluations by zero-padding coeffs and FFT to size n<<r
+            let r = 2u32;
+            let ext = lde_from_evals(&base, r);
+            let step = 1usize << r; // mapping base index i -> extended index i<<r
+            for i in 0..n {
+                assert_eq!(ext[i * step], base[i]);
+            }
+        }
+    }
+
+    #[test]
+    fn vanishing_polys_correctness() {
+        for log_n in 3..=10 {
+            let n = 1usize << log_n;
+            let evals = vanishing_poly_evals(n);
+            let w = root_of_unity(log_n);
+            let mut x = Fp::one();
+            for ev in evals.iter() {
+                assert_eq!(*ev, x.pow(n as u128) - Fp::one());
+                x *= w;
+            }
+        }
+    }
+
+    #[test]
+    fn vanishing_on_extended_matches_base_power() {
+        for log_n in 3..=9 {
+            let n = 1usize << log_n;
+            let r = 2u32;
+            let ext_size = n << r;
+            let evals = vanishing_on_extended(ext_size, n);
+            // At every ext index that corresponds to a base point, value should be zero
+            for i in (0..ext_size).step_by(1<<r) {
+                assert_eq!(evals[i], Fp::zero());
+            }
         }
     }
 }
