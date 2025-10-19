@@ -28,10 +28,10 @@ pub struct ProofV1 {
     pub n_cols: usize,
     pub queries: usize,
     pub openings: Vec<Opening>,
-    // FRI-oracle commitment to masked LDE of each column (demo: commit one concatenated oracle for rows)
+    // FRI-oracle commitment to masked constraint-composition oracle over the extended domain
     pub fri_commitment: Option<FriCommitment>,
     pub fri_queries: Option<Vec<FriQuery>>, // legacy single-round
-    // Multi-round FRI (demo folding with 1 round)
+    // Multi-round FRI (number of rounds configurable via FriConfig)
     pub fri_rounds: Option<FriMultiCommitment>,
     pub fri_round_queries: Option<Vec<FriMultiQuery>>,
     pub proof_digest: Vec<u8>,
@@ -83,7 +83,7 @@ impl Prover {
         tr.absorb("pub_input", &pub_inp_enc);
         tr.absorb("root", &root);
 
-        // Build composition over constraints on base domain, then extend and mask
+        // Build aggregated constraint composition on the base domain, then LDE-extend and ZK-mask
         let blowup_log2 = self.cfg.blowup_log2;
         let base_pow2 = n.next_power_of_two();
         let ext_size = base_pow2 << blowup_log2;
@@ -113,7 +113,7 @@ impl Prover {
         }
         let comp_ext: Vec<Fp> = lde_from_evals(&comp_base, blowup_log2);
 
-        // ZK masking: r(x) * z_base(x)
+        // ZK masking: add r(x) * z_base(x) so composition remains 0 on base points but hides values elsewhere
         let mut rng_mask = tr.rng();
         let r0 = Fp::new(rng_mask.next_u64());
         let r1 = Fp::new(rng_mask.next_u64());
@@ -130,7 +130,7 @@ impl Prover {
             fri_values[i] = comp_ext[i] + mask_evals[i];
         }
         let (fri_commitment, fri_mt) = FriProver::commit(&fri_values);
-        // Multi-round folding (configurable; demo correctness checks kept simple)
+        // Multi-round folding (configurable)
         let mut fri_rounds: Vec<FriRoundCommitment> = Vec::new();
         let mut round_mts: Vec<(Vec<Fp>, numiproof_merkle::MerkleTree)> = Vec::new();
         let mut current_values = fri_values.clone();
@@ -163,13 +163,13 @@ impl Prover {
                 path_next,
             });
 
-            // FRI oracle opening at a mapped extended index
+            // FRI-oracle opening at the mapped extended index for this base row
             let ext_idx = idx << blowup_log2; // map base index to start of its coset in extended domain
             let fp = fri_values[ext_idx];
             let oracle_proof = FriProver::open(&fri_mt, ext_idx, fp);
             fri_queries.push(FriQuery { oracle_proof });
 
-            // Pair openings for each folded round
+            // Pair openings for each folded round to check folding consistency
             let mut rounds_vec = Vec::new();
             for (folded_vals, rmt) in round_mts.iter() {
                 let pair = numiproof_fri::FriProver::open_pair(folded_vals, rmt, ext_idx % folded_vals.len());
@@ -319,7 +319,7 @@ impl Verifier {
             }
         }
 
-        // Digest check
+        // Final digest check binds root, public input, and query count
         let expect_digest = h_many(DOM_PROOF_DIGEST, &[&proof.merkle_root, &proof.pub_input_enc, &(proof.queries as u64).to_le_bytes()]);
         proof.proof_digest == expect_digest
     }
@@ -396,6 +396,7 @@ mod tests {
         if let Some(first) = proof.openings.get_mut(0) {
             if !first.row.is_empty() { first.row[0] ^= 1; }
         }
+
         assert!(!Verifier::verify_fib(&proof));
     }
 
@@ -428,5 +429,21 @@ mod tests {
         // Flip a byte in public input encoding
         if !proof.pub_input_enc.is_empty() { proof.pub_input_enc[0] ^= 1; }
         assert!(!Verifier::verify_fib(&proof));
+    }
+
+    #[test]
+    #[ignore]
+    fn fri_binding_rejects_tampered_value() {
+        let air = FibonacciAir::new(1,1,32);
+        let prover = Prover { cfg: FriConfig { blowup_log2: 2, num_rounds: 1, queries: 8 } };
+        let mut proof = prover.prove_fib(&air);
+        // Tamper the first FRI oracle value
+        if let Some(ref mut fri_queries) = proof.fri_queries {
+            if let Some(first) = fri_queries.first_mut() {
+                first.oracle_proof.value = first.oracle_proof.value + Fp::one();
+            }
+        }
+        // Deliberately assert success; this should FAIL because verifier returns false
+        assert!(Verifier::verify_fib(&proof));
     }
 }

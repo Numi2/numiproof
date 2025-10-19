@@ -17,7 +17,7 @@ impl Poly {
     }
 }
 
-/// In-place radix-2 decimation-in-time FFT over size n (power of two).
+/// In-place radix-2 decimation-in-time FFT over size n (power of two); uses \(w\) as a principal \(n\)-th root.
 pub fn fft_in_place(a: &mut [Fp], root: Fp) {
     let n = a.len();
     assert!(n.is_power_of_two());
@@ -45,7 +45,7 @@ pub fn fft_in_place(a: &mut [Fp], root: Fp) {
     }
 }
 
-// Removed: unused helper `bits_for_len` to satisfy clippy dead_code
+// Note: helper `bits_for_len` was removed to satisfy dead_code lints
 
 pub fn ifft_in_place(a: &mut [Fp], root: Fp) {
     // IFFT implemented as FFT with inverse root, then scale by n^{-1}
@@ -56,7 +56,7 @@ pub fn ifft_in_place(a: &mut [Fp], root: Fp) {
     for x in a.iter_mut() { *x *= inv_n; }
 }
 
-/// Evaluate polynomial on a coset g * <w>, where w is 2^k root and blowup is 2^r.
+/// Evaluate polynomial coefficients on a size-extended radix-2 domain via zero-padding and FFT.
 pub fn lde(coeffs: &[Fp], blowup_log2: u32) -> Vec<Fp> {
     let n = coeffs.len().next_power_of_two();
     let size = n << blowup_log2;
@@ -74,8 +74,9 @@ pub fn lde(coeffs: &[Fp], blowup_log2: u32) -> Vec<Fp> {
 }
 
 /// LDE from base-domain evaluations (size n) to extended evaluations (size n<<blowup).
-/// Assumes base domain is the radix-2 subgroup of size n. Pads evaluations by
-/// duplicating the last value up to n=power-of-two as needed.
+/// Assumes base domain is the radix-2 subgroup of size n. Pads evaluations by duplicating
+/// the last value up to the next power-of-two, then converts to coeffs and re-evaluates on the
+/// extended domain.
 pub fn lde_from_evals(base_evals: &[Fp], blowup_log2: u32) -> Vec<Fp> {
     let n_base = base_evals.len().next_power_of_two();
     let ext_size = n_base << blowup_log2;

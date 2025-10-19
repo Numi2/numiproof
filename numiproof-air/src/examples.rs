@@ -3,8 +3,8 @@ use serde::{Serialize, Deserialize};
 use crate::Air;
 use numiproof_field::Fp;
 
-/// Range check AIR: proves that values are in range [0, 2^bits - 1]
-/// Uses decomposition into bit columns
+/// Range check AIR: enforces that a value lies in [0, 2^bits - 1].
+/// Implements a running-division by 2 with boolean bit constraints and a power-of-two column.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RangeCheckPublic {
     pub value: u64,
@@ -134,8 +134,8 @@ impl Air for RangeCheckAir {
     }
 }
 
-/// Permutation check AIR: proves that output is a permutation of input
-/// Uses running product method (Plonk-style)
+/// Permutation-check AIR: enforces output is a permutation of input using a single running product
+/// with a fixed challenge beta (for simplicity in examples; real systems derive beta via Fiat–Shamir).
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PermutationPublic {
     pub input_hash: Vec<u8>,
@@ -264,7 +264,7 @@ impl Air for PermutationAir {
     }
 }
 
-/// Hash chain AIR: proves correct computation of iterated hash
+/// Hash-chain AIR: proves correct computation of an iterated SHAKE256-384 over 6-limb field encoding.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct HashChainPublic {
     pub initial: Vec<u8>,

@@ -15,7 +15,7 @@ impl MerkleTree {
             let val = if i < leaves.len() { &leaves[i] } else { &leaves[leaves.len()-1] };
             *slot = val.clone();
         });
-        // Compute internal nodes; level-by-level parallelism
+        // Compute internal nodes; sequential upward pass is sufficient given SHAKE throughput
         for i in (1..n).rev() {
             // Small trees don't benefit; sequential is fine for upper levels
             nodes[i] = h2(DOM_MERKLE_NODE, &nodes[i<<1], &nodes[i<<1|1]).to_vec();

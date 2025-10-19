@@ -8,14 +8,14 @@ use numiproof_spec as spec;
 use std::{fs, path::PathBuf};
 
 #[derive(Parser)]
-#[command(name="numiproof", version, about="Minimal PQ-friendly proof demo")]
+#[command(name="numiproof", version, about="Minimal PQ-friendly STARK-style proof demo with FRI")]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd
 }
 #[derive(Subcommand)]
 enum Cmd {
-    /// Prove Fibonacci transition
+    /// Prove a Fibonacci AIR instance and write a proof to disk
     ProveFib {
         #[arg(long, default_value_t=1)]
         a0: u64,
@@ -37,12 +37,12 @@ enum Cmd {
         #[arg(long)]
         params: Option<PathBuf>,
     },
-    /// Verify a Fibonacci proof
+    /// Verify a previously generated Fibonacci proof
     VerifyFib {
         #[arg(long, default_value = "proof.bin")]
         proof: PathBuf,
     },
-    /// Accumulate proof digest into an aggregator
+    /// Accumulate the proof digest into a rolling accumulator (demo)
     Accumulate {
         #[arg(long)]
         current_proof: PathBuf,
@@ -50,7 +50,7 @@ enum Cmd {
         #[arg(long)]
         prev_hex: Option<String>,
     },
-    /// Aggregate a proof into a recursive AIR instance and output new digest (demo scaffold)
+    /// Build a recursive AIR instance from a proof and output the new accumulator digest (demo)
     Aggregate {
         #[arg(long)]
         current_proof: PathBuf,
@@ -60,9 +60,9 @@ enum Cmd {
         #[arg(long)]
         prev_hex: Option<String>,
     },
-    /// Generate a KEM keypair (placeholder PQ KEM)
+    /// Generate a Kyber-768 KEM keypair
     KemKeygen {},
-    /// Make a note and print its commitment
+    /// Make a shielded note and print its commitment
     MakeNote {
         #[arg(long)]
         value: u64,

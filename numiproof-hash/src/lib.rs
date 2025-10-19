@@ -5,7 +5,7 @@ use serde::{Serialize, Deserialize};
 
 pub const DIGEST_LEN: usize = 48; // 384-bit output
 
-// Domain labels
+// Domain separation labels for hashed constructs in this workspace
 pub const DOM_ROW: &str = "row";
 pub const DOM_MERKLE_NODE: &str = "merkle.node";
 pub const DOM_FRI_LEAF: &str = "fri.leaf";

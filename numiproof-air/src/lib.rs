@@ -10,15 +10,15 @@ pub trait Air {
     fn trace_len(&self) -> usize;
     fn n_cols(&self) -> usize;
     fn public_input(&self) -> Self::PublicInput;
-    fn gen_trace(&self) -> Vec<Vec<Fp>>; // column-major over field
+    fn gen_trace(&self) -> Vec<Vec<Fp>>; // column-major over field elements
     fn check_row(i: usize, row: &[Fp], next: Option<&[Fp]>, pub_inp: &Self::PublicInput) -> bool;
     /// Evaluate constraint polynomials for a given row (and optional next row).
     /// Implementations should return zero when constraints are satisfied.
     fn eval_constraints(&self, i: usize, row: &[Fp], next: Option<&[Fp]>, pub_inp: &Self::PublicInput) -> Vec<Fp>;
 }
 
-/// Simple Fibonacci AIR over u64 with wrapping arithmetic.
-/// Columns: [a_i, a_{i+1}]
+/// Simple Fibonacci AIR over the Goldilocks field with wrapping arithmetic.
+/// Columns are [a_i, a_{i+1}]. The last-row boundary fixes a_i to the expected-first value.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct FibPublic {
     pub steps: u32,

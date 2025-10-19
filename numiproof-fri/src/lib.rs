@@ -55,7 +55,7 @@ pub struct FriMultiQuery {
     pub rounds: Vec<FriRoundQuery>,
 }
 
-/// DEEP-FRI: Out-of-domain evaluation point and algebraic link
+/// DEEP-FRI: Out-of-domain evaluation samples and algebraic link primitives
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct DeepSample {
     pub z: Fp,  // Out-of-domain point
@@ -105,7 +105,7 @@ impl FriProver {
         samples
     }
 
-    /// Compute DEEP composition: (f(X) - f(z)) / (X - z) for algebraic linking
+    /// Compute DEEP composition quotient: (f(X) - f(z)) / (X - z) via synthetic division
     pub fn deep_quotient(poly_coeffs: &[Fp], z: Fp, f_z: Fp) -> Vec<Fp> {
         let n = poly_coeffs.len();
         if n == 0 { return vec![]; }

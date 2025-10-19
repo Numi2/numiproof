@@ -1,8 +1,7 @@
 use core::ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign, Neg};
 use serde::{Deserialize, Serialize};
 
-/// Goldilocks prime: 2^64 - 2^32 + 1
-/// Commonly used for 64-bit friendly FFTs.
+/// Goldilocks prime modulus (2^64 - 2^32 + 1), widely used for 64-bit FFTs.
 pub const MODULUS: u64 = 0xFFFF_FFFF_0000_0001;
 
 #[derive(Copy, Clone, Default, Serialize, Deserialize, Eq, PartialEq, Debug)]
@@ -87,10 +86,8 @@ impl Neg for Fp {
 
 /// Compute a principal 2^k root of unity and its table of powers.
 pub fn root_of_unity(power: u32) -> Fp {
-    // Known 2-adicity for Goldilocks is 32. Use a known generator of the 2-adic subgroup.
-    // A commonly used root is 7 for the full multiplicative group; however, to avoid assumptions,
-    // we exponentiate a fixed generator to obtain a principal 2^power root.
-    // Choose generator g = 7 (commonly used for Goldilocks) and derive w = g^((p-1)/2^power)
+    // Known 2-adicity for Goldilocks is 32. We derive a principal 2^power root from generator g=7
+    // as w = g^((p-1)/2^power). In debug builds we assert the expected order.
     let g = Fp::new(7);
     let exp = ((MODULUS as u128) - 1) >> power;
     let w = g.pow(exp);

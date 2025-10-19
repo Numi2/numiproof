@@ -11,9 +11,9 @@ pub struct RecursivePublic {
     pub inner_proof_root: Vec<u8>,
 }
 
-/// AIR for verifying an inner proof recursively
-/// Trace encodes: [digest_limb_0, digest_limb_1, ..., digest_limb_5, hash_state_0, hash_state_1]
-/// This is a simplified recursive verifier that checks hash chain integrity
+/// AIR for verifying an inner proof recursively (simplified model).
+/// Trace columns: 6 digest limbs plus 2 hash-state accumulators. This checks accumulator-chain
+/// integrity between `prev_digest` and `cur_digest` and binds to `inner_proof_root` via public input.
 #[derive(Clone)]
 pub struct RecursiveAir {
     pub steps: usize,

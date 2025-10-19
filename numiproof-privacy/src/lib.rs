@@ -38,20 +38,20 @@ pub struct TxV1 {
     pub ciphertexts: Vec<Vec<u8>>,
 }
 
-/// Generate ML-KEM keypair for post-quantum encryption
+/// Generate an ML-KEM (Kyber-768) keypair for post-quantum encryption
 pub fn kem_keygen() -> Keypair {
     let (pk, sk) = mlkem::keygen();
     Keypair { sk: sk.bytes, pk: pk.bytes }
 }
 
-/// Encapsulate shared secret using ML-KEM (returns ciphertext and shared secret)
+/// Encapsulate a shared secret using ML-KEM; returns ciphertext and 32-byte shared secret
 pub fn kem_encapsulate(pk_bytes: &[u8]) -> (Vec<u8>, Vec<u8>) {
     let pk = mlkem::PublicKey { bytes: pk_bytes.to_vec() };
     let (ct, ss) = mlkem::encapsulate(&pk);
     (ct.bytes, ss)
 }
 
-/// Decapsulate shared secret using ML-KEM
+/// Decapsulate the shared secret using ML-KEM
 pub fn kem_decapsulate(ct_bytes: &[u8], sk_bytes: &[u8]) -> Vec<u8> {
     let ct = mlkem::Ciphertext { bytes: ct_bytes.to_vec() };
     let sk = mlkem::SecretKey { bytes: sk_bytes.to_vec() };
@@ -59,7 +59,7 @@ pub fn kem_decapsulate(ct_bytes: &[u8], sk_bytes: &[u8]) -> Vec<u8> {
     ss
 }
 
-/// Encrypt payload using KEM + symmetric encryption (simplified AEAD)
+/// Encrypt payload using KEM + XOR stream (simplified; not a full AEAD). For demos only.
 pub fn kem_enc(pk_bytes: &[u8], payload: &[u8]) -> Vec<u8> {
     let (ct, ss) = kem_encapsulate(pk_bytes);
     
@@ -84,7 +84,7 @@ pub fn kem_enc(pk_bytes: &[u8], payload: &[u8]) -> Vec<u8> {
     result
 }
 
-/// Decrypt payload using KEM + symmetric decryption
+/// Decrypt payload using KEM + XOR stream (simplified; not a full AEAD). For demos only.
 pub fn kem_dec(sk_bytes: &[u8], ct_payload: &[u8]) -> Option<Vec<u8>> {
     if ct_payload.len() < 4 { return None; }
     
