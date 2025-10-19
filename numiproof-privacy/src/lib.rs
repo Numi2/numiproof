@@ -48,7 +48,7 @@ pub fn kem_keygen() -> Keypair {
 pub fn kem_encapsulate(pk_bytes: &[u8]) -> (Vec<u8>, Vec<u8>) {
     let pk = mlkem::PublicKey { bytes: pk_bytes.to_vec() };
     let (ct, ss) = mlkem::encapsulate(&pk);
-    (ct.bytes, ss.to_vec())
+    (ct.bytes, ss)
 }
 
 /// Decapsulate shared secret using ML-KEM
@@ -56,7 +56,7 @@ pub fn kem_decapsulate(ct_bytes: &[u8], sk_bytes: &[u8]) -> Vec<u8> {
     let ct = mlkem::Ciphertext { bytes: ct_bytes.to_vec() };
     let sk = mlkem::SecretKey { bytes: sk_bytes.to_vec() };
     let ss = mlkem::decapsulate(&ct, &sk);
-    ss.to_vec()
+    ss
 }
 
 /// Encrypt payload using KEM + symmetric encryption (simplified AEAD)
@@ -146,11 +146,7 @@ mod tests {
         let payload = b"Hello, post-quantum world!";
         let ct = kem_enc(&kp.pk, payload);
         let decrypted = kem_dec(&kp.sk, &ct).expect("Decryption failed");
-        
-        // Note: This is a simplified ML-KEM implementation for demonstration.
-        // In a production system, the decryption would correctly recover the original payload.
-        // For now, just verify the decryption succeeds and produces output of expected length
-        assert_eq!(decrypted.len(), payload.len());
+        assert_eq!(decrypted, payload);
     }
     
     #[test]

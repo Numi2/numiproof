@@ -10,4 +10,6 @@ numiproof-air = { path = "../numiproof-air" }
 serde = { version = "1", features = ["derive"] }
 rand = "0.8"
 sha3 = "0.10"
+pqcrypto-kyber = "0.8"
+pqcrypto-traits = "0.3"
 

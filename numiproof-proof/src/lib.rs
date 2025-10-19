@@ -83,34 +83,51 @@ impl Prover {
         tr.absorb("pub_input", &pub_inp_enc);
         tr.absorb("root", &root);
 
-        // ZK masking: compute evaluations of r(x)*z_base(x), with small random r(x)
+        // Build composition over constraints on base domain, then extend and mask
         let blowup_log2 = self.cfg.blowup_log2;
-        // Use power-of-two base size for extended domain to align with FFT-based LDE
         let base_pow2 = n.next_power_of_two();
         let ext_size = base_pow2 << blowup_log2;
+
+        // Fiat–Shamir alphas for constraint aggregation
+        let alpha0_bytes = tr.challenge_bytes(8);
+        let alpha1_bytes = tr.challenge_bytes(8);
+        let alpha0 = Fp::new(u64::from_le_bytes(alpha0_bytes.try_into().unwrap()));
+        let alpha1 = Fp::new(u64::from_le_bytes(alpha1_bytes.try_into().unwrap()));
+
+        // Compute base-domain composition: sum_j alpha_j * c_j(i)
+        let mut comp_base: Vec<Fp> = vec![Fp::zero(); n];
+        for i in 0..n {
+            let row_fp = [cols[0][i], cols[1][i]];
+            let next_fp = if i + 1 < n { Some([cols[0][i+1], cols[1][i+1]]) } else { None };
+            let constraints = if let Some(nxt) = next_fp.as_ref() {
+                // Transition constraints for Fibonacci
+                let c0 = nxt[0] - row_fp[1];
+                let c1 = nxt[1] - (row_fp[0] + row_fp[1]);
+                [c0, c1]
+            } else {
+                // Last row boundary: a_i equals expected_first
+                let c_end = row_fp[0] - Fp::new(pub_inp.expected_first);
+                [c_end, Fp::zero()]
+            };
+            comp_base[i] = alpha0 * constraints[0] + alpha1 * constraints[1];
+        }
+        let comp_ext: Vec<Fp> = lde_from_evals(&comp_base, blowup_log2);
+
+        // ZK masking: r(x) * z_base(x)
         let mut rng_mask = tr.rng();
         let r0 = Fp::new(rng_mask.next_u64());
         let r1 = Fp::new(rng_mask.next_u64());
         let mask_evals = {
             let r_coeffs = [r0, r1];
             let r_eval = eval_poly_on_domain(&r_coeffs, ext_size);
-            // Vanish on the power-of-two base domain to ensure zeros align with LDE sampling points
             let z_base = vanishing_on_extended(ext_size, base_pow2);
             r_eval.iter().zip(z_base.iter()).map(|(a,b)| *a * *b).collect::<Vec<Fp>>()
         };
-        // Commit to masked composition oracle: challenge-weighted combination of column LDEs
-        let col0_base: Vec<Fp> = (0..n).map(|i| cols[0][i]).collect();
-        let col1_base: Vec<Fp> = (0..n).map(|i| cols[1][i]).collect();
-        let col0_ext: Vec<Fp> = lde_from_evals(&col0_base, blowup_log2);
-        let col1_ext: Vec<Fp> = lde_from_evals(&col1_base, blowup_log2);
-        let gamma0_bytes = tr.challenge_bytes(8);
-        let gamma1_bytes = tr.challenge_bytes(8);
-        let gamma0 = Fp::new(u64::from_le_bytes(gamma0_bytes.try_into().unwrap()));
-        let gamma1 = Fp::new(u64::from_le_bytes(gamma1_bytes.try_into().unwrap()));
+
+        // Commit to masked composition oracle
         let mut fri_values: Vec<Fp> = vec![Fp::zero(); ext_size];
         for i in 0..ext_size {
-            // Simple composition: linear combination of columns + mask for zero-knowledge
-            fri_values[i] = gamma0 * col0_ext[i] + gamma1 * col1_ext[i] + mask_evals[i];
+            fri_values[i] = comp_ext[i] + mask_evals[i];
         }
         let (fri_commitment, fri_mt) = FriProver::commit(&fri_values);
         // Multi-round folding (configurable; demo correctness checks kept simple)
@@ -227,7 +244,7 @@ impl Verifier {
                 return false;
             }
 
-            // Verify FRI oracle opening for same index (demo)
+            // Verify FRI oracle opening for same index and bind it to the opened row
             if let (Some(ref commit), Some(ref queries)) = (&proof.fri_commitment, &proof.fri_queries) {
                 let q = &queries[k];
                 // Determine blowup from commitment length and base rows
@@ -239,6 +256,36 @@ impl Verifier {
                 let ext_idx = expected_idx << blowup_log2;
                 if q.oracle_proof.idx != ext_idx { return false; }
                 if !FriVerifier::verify_opening(commit, &q.oracle_proof) { return false; }
+
+                // Recompute transcript challenges and ZK mask exactly as the prover did
+                // to bind the FRI value to the constraint composition at this position
+                // Mask evaluations: r(x) * z_base(x) on extended domain
+                let ext_size = commit.oracle.len;
+                let mut rng_mask = tr.rng();
+                let r0 = Fp::new(rng_mask.next_u64());
+                let r1 = Fp::new(rng_mask.next_u64());
+                let r_coeffs = [r0, r1];
+                let r_eval = eval_poly_on_domain(&r_coeffs, ext_size);
+                let z_base = vanishing_on_extended(ext_size, base_pow2);
+                let mask_at_ext_idx = r_eval[ext_idx] * z_base[ext_idx];
+
+                // Constraint-composition challenges (match prover order)
+                let alpha0_bytes = tr.challenge_bytes(8);
+                let alpha1_bytes = tr.challenge_bytes(8);
+                let alpha0 = Fp::new(u64::from_le_bytes(alpha0_bytes.try_into().unwrap()));
+                let alpha1 = Fp::new(u64::from_le_bytes(alpha1_bytes.try_into().unwrap()));
+
+                // Evaluate constraints at this row (transition or boundary)
+                let (c0, c1) = if let Some(nxt) = next.as_ref() {
+                    // Transition constraints of Fibonacci AIR
+                    (nxt[0] - row[1], nxt[1] - (row[0] + row[1]))
+                } else {
+                    // Boundary constraint at last row
+                    (row[0] - Fp::new(pub_inp.expected_first), Fp::zero())
+                };
+                // At ext_idx corresponding to base i, LDE value equals base composition value
+                let expected_oracle_val = alpha0 * c0 + alpha1 * c1 + mask_at_ext_idx;
+                if q.oracle_proof.value != expected_oracle_val { return false; }
             }
 
             // Verify folding round inclusions (multi-round) with folding consistency checks
