@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 numiproof-hash = { path = "../numiproof-hash" }
 numiproof-field = { path = "../numiproof-field" }
+numiproof-air = { path = "../numiproof-air" }
 serde = { version = "1", features = ["derive"] }
 rand = "0.8"
 sha3 = "0.10"

@@ -11,5 +11,6 @@ numiproof-air = { path = "../numiproof-air" }
 numiproof-proof = { path = "../numiproof-proof" }
 numiproof-privacy = { path = "../numiproof-privacy" }
 numiproof-spec = { path = "../numiproof-spec" }
+numiproof-recursion = { path = "../numiproof-recursion" }
 bincode = "1"
 hex = "0.4"

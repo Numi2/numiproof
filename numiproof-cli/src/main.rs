@@ -1,6 +1,6 @@
 // File: numiproof-cli/src/main.rs
 use clap::{Parser, Subcommand};
-use numiproof_air::{FibonacciAir};
+use numiproof_air::{FibonacciAir, Air};
 use numiproof_proof::{Prover, Verifier, accumulate, FriConfig};
 use numiproof_recursion::RecursiveAir;
 use numiproof_privacy as privacy;
@@ -120,7 +120,8 @@ fn main() {
                 .as_ref()
                 .and_then(|h| hex::decode(h).ok());
             let prev = prev_bytes.as_deref();
-            let air = RecursiveAir::new(prev, &proof.proof_digest, steps);
+            let inner_root = &proof.merkle_root;
+            let air = RecursiveAir::new(prev, &proof.proof_digest, inner_root, steps);
             let pub_inp = air.public_input();
             println!("new_digest={}", hex::encode(&pub_inp.cur_digest));
         }
@@ -130,10 +131,7 @@ fn main() {
         }
         Cmd::MakeNote { value, recipient_pk_hex } => {
             let pk_bytes = hex::decode(recipient_pk_hex).expect("pk hex");
-            assert_eq!(pk_bytes.len(), 32, "recipient_pk must be 32 bytes");
-            let mut pk = [0u8; 32];
-            pk.copy_from_slice(&pk_bytes);
-            let note = privacy::make_note(value, pk);
+            let note = privacy::make_note(value, pk_bytes);
             let cm = privacy::note_commitment(&note);
             println!("cm={}", hex::encode(cm));
         }

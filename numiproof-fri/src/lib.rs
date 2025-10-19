@@ -55,6 +55,19 @@ pub struct FriMultiQuery {
     pub rounds: Vec<FriRoundQuery>,
 }
 
+/// DEEP-FRI: Out-of-domain evaluation point and algebraic link
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct DeepSample {
+    pub z: Fp,  // Out-of-domain point
+    pub value: Fp,  // Polynomial evaluation at z
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct DeepCommitment {
+    pub samples: Vec<DeepSample>,
+    pub composition_root: Vec<u8>,
+}
+
 pub struct FriProver;
 impl FriProver {
     pub fn commit(values: &[Fp]) -> (FriCommitment, MerkleTree) {
@@ -68,6 +81,53 @@ impl FriProver {
         let mt = MerkleTree::build(&leaves);
         let root = mt.root();
         (FriCommitment { oracle: OracleCommitment { root, len: values.len() } }, mt)
+    }
+
+    /// DEEP-FRI: Sample polynomial at out-of-domain points for stronger security
+    pub fn deep_sample(poly_coeffs: &[Fp], num_samples: usize, seed: &[u8]) -> Vec<DeepSample> {
+        use numiproof_hash::shake256_384;
+        let mut samples = Vec::with_capacity(num_samples);
+        for i in 0..num_samples {
+            // Derive deterministic out-of-domain point from seed
+            let point_seed = [seed, &i.to_le_bytes()].concat();
+            let hash = shake256_384(&point_seed);
+            let z_raw = u64::from_le_bytes(hash[0..8].try_into().unwrap());
+            let z = Fp::new(z_raw);
+            
+            // Evaluate polynomial at z using Horner's method
+            let mut value = Fp::zero();
+            for &coeff in poly_coeffs.iter().rev() {
+                value = value * z + coeff;
+            }
+            
+            samples.push(DeepSample { z, value });
+        }
+        samples
+    }
+
+    /// Compute DEEP composition: (f(X) - f(z)) / (X - z) for algebraic linking
+    pub fn deep_quotient(poly_coeffs: &[Fp], z: Fp, f_z: Fp) -> Vec<Fp> {
+        let n = poly_coeffs.len();
+        if n == 0 { return vec![]; }
+        
+        // Build f(X) - f(z)
+        let mut shifted = poly_coeffs.to_vec();
+        shifted[0] = shifted[0] - f_z;
+        
+        // Polynomial division by (X - z)
+        let mut quotient = vec![Fp::zero(); n.saturating_sub(1)];
+        if n > 1 {
+            let mut remainder = shifted[n - 1];
+            quotient[n - 2] = remainder;
+            
+            for i in (0..n-1).rev() {
+                remainder = shifted[i] + z * remainder;
+                if i > 0 {
+                    quotient[i - 1] = remainder;
+                }
+            }
+        }
+        quotient
     }
 
     pub fn open(mt: &MerkleTree, idx: usize, value: Fp) -> OracleProof {
@@ -123,10 +183,34 @@ impl FriVerifier {
         };
         let leaf_hi = {
             let b = pair.hi.value.to_u64().to_le_bytes();
-            shake256_384(&h_many("fri.leaf", &[&b])).to_vec()
+            shake256_384(&h_many(DOM_FRI_LEAF, &[&b])).to_vec()
         };
         MerkleTree::verify(root, pair.lo.idx, &leaf_lo, &pair.lo.path) &&
         MerkleTree::verify(root, pair.hi.idx, &leaf_hi, &pair.hi.path)
+    }
+
+    /// Verify multi-round FRI folding consistency across all rounds
+    pub fn verify_folding_chain(
+        alpha: Fp,
+        pair: &PairOpening,
+        next_pair: Option<&PairOpening>,
+    ) -> bool {
+        // Compute expected folded value: lo + alpha * hi
+        let expected_folded = pair.lo.value + alpha * pair.hi.value;
+        
+        // If there's a next round, verify consistency
+        if let Some(next) = next_pair {
+            // The folded value should appear in the next round at the mapped position
+            let folded_idx = pair.pos / 2;
+            if next.lo.idx != folded_idx && next.hi.idx != folded_idx {
+                return false;
+            }
+            // Check that one of the next pair values matches our expected folded value
+            next.lo.value == expected_folded || next.hi.value == expected_folded
+        } else {
+            // Final round - no further verification needed
+            true
+        }
     }
 }
 

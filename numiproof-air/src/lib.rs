@@ -2,6 +2,8 @@
 use serde::{Serialize, Deserialize};
 use numiproof_field::Fp;
 
+pub mod examples;
+
 pub trait Air {
     type PublicInput: Serialize + for<'de> Deserialize<'de> + Clone;
     fn id(&self) -> &'static str;
@@ -73,7 +75,7 @@ impl Air for FibonacciAir {
         }
         true
     }
-    fn eval_constraints(&self, i: usize, row: &[Fp], next: Option<&[Fp]>, pub_inp: &Self::PublicInput) -> Vec<Fp> {
+    fn eval_constraints(&self, _i: usize, row: &[Fp], next: Option<&[Fp]>, pub_inp: &Self::PublicInput) -> Vec<Fp> {
         if let Some(nxt) = next {
             // Transition constraints
             let c0 = nxt[0] - row[1];

@@ -53,7 +53,7 @@ impl Air for ShieldedAir {
         // last row already set; boundary should be zero
         vec![c0, c1]
     }
-    fn check_row(&self, i: usize, row: &[Fp], next: Option<&[Fp]>, pub_inp: &Self::PublicInput) -> bool {
+    fn check_row(i: usize, row: &[Fp], next: Option<&[Fp]>, pub_inp: &Self::PublicInput) -> bool {
         if let Some(nxt) = next {
             let n_in = pub_inp.n_in as usize;
             if i < n_in {

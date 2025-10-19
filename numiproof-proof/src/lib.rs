@@ -47,7 +47,7 @@ pub struct FriConfig {
 }
 impl Default for FriConfig {
     fn default() -> Self {
-        Self { blowup_log2: 2, num_rounds: 1, queries: 40 }
+        Self { blowup_log2: 3, num_rounds: 5, queries: 80 }
     }
 }
 
@@ -66,7 +66,7 @@ impl Prover {
         let n = air.trace_len();
         let mut leaves = Vec::with_capacity(n);
         let mut rows = Vec::with_capacity(n);
-        (0..n).into_par_iter().for_each(|i| {}); // ensure rayon linked
+        (0..n).into_par_iter().for_each(|_i| {}); // ensure rayon linked
         for i in 0..n {
             let row: Vec<Fp> = vec![cols[0][i], cols[1][i]];
             let bytes = row_to_bytes(&row);
@@ -109,6 +109,7 @@ impl Prover {
         let gamma1 = Fp::new(u64::from_le_bytes(gamma1_bytes.try_into().unwrap()));
         let mut fri_values: Vec<Fp> = vec![Fp::zero(); ext_size];
         for i in 0..ext_size {
+            // Simple composition: linear combination of columns + mask for zero-knowledge
             fri_values[i] = gamma0 * col0_ext[i] + gamma1 * col1_ext[i] + mask_evals[i];
         }
         let (fri_commitment, fri_mt) = FriProver::commit(&fri_values);
@@ -240,16 +241,33 @@ impl Verifier {
                 if !FriVerifier::verify_opening(commit, &q.oracle_proof) { return false; }
             }
 
-            // Verify folding round inclusions (multi-round). For now, only inclusion checks per round.
+            // Verify folding round inclusions (multi-round) with folding consistency checks
             if let (Some(ref rounds), Some(ref rq)) = (&proof.fri_rounds, &proof.fri_round_queries) {
                 let num_rounds = rounds.rounds.len();
                 if rq[k].rounds.len() != num_rounds { return false; }
                 for r_i in 0..num_rounds {
-                    // derive per-round alpha to match prover's sequence (not used beyond deriving transcript state)
-                    let _alpha_bytes = tr.challenge_bytes(8);
+                    // derive per-round alpha to match prover's sequence
+                    let alpha_bytes = tr.challenge_bytes(8);
+                    let alpha = Fp::new(u64::from_le_bytes(alpha_bytes.try_into().unwrap()));
                     let r = &rounds.rounds[r_i];
                     let q = &rq[k].rounds[r_i];
+                    // Verify Merkle inclusion for this round
                     if !numiproof_fri::FriVerifier::verify_pair(&r.root, r.len, &q.pair) { return false; }
+                    // Verify folding consistency between consecutive rounds
+                    let next_pair = if r_i + 1 < num_rounds {
+                        Some(&rq[k].rounds[r_i + 1].pair)
+                    } else {
+                        None
+                    };
+                    if !numiproof_fri::FriVerifier::verify_folding_chain(alpha, &q.pair, next_pair) {
+                        return false;
+                    }
+                }
+                // Final round should be smaller than initial (folding is working) when there are multiple rounds
+                if num_rounds > 1 {
+                    if let Some((first_round, last_round)) = rounds.rounds.first().zip(rounds.rounds.last()) {
+                        if last_round.len >= first_round.len { return false; }
+                    }
                 }
             }
         }
@@ -317,7 +335,7 @@ mod tests {
     #[test]
     fn fib_prove_verify() {
         let air = FibonacciAir::new(1,1,64);
-        let prover = Prover { queries: 32 };
+        let prover = Prover { cfg: FriConfig { blowup_log2: 2, num_rounds: 1, queries: 32 } };
         let proof = prover.prove_fib(&air);
         assert!(Verifier::verify_fib(&proof));
     }
@@ -325,7 +343,7 @@ mod tests {
     #[test]
     fn verify_rejects_tampered_row() {
         let air = FibonacciAir::new(1,1,32);
-        let prover = Prover { queries: 16 };
+        let prover = Prover { cfg: FriConfig { blowup_log2: 2, num_rounds: 1, queries: 16 } };
         let mut proof = prover.prove_fib(&air);
         // Tamper a byte in first opening row; proof should fail
         if let Some(first) = proof.openings.get_mut(0) {
@@ -337,7 +355,7 @@ mod tests {
     #[test]
     fn verify_rejects_wrong_query_index() {
         let air = FibonacciAir::new(1,1,32);
-        let prover = Prover { queries: 16 };
+        let prover = Prover { cfg: FriConfig { blowup_log2: 2, num_rounds: 1, queries: 16 } };
         let mut proof = prover.prove_fib(&air);
         // Force an incorrect index for first opening
         if let Some(first) = proof.openings.get_mut(0) { first.idx = (first.idx + 1) % proof.n_rows; }
@@ -347,7 +365,7 @@ mod tests {
     #[test]
     fn verify_rejects_bad_next_row_path() {
         let air = FibonacciAir::new(1,1,32);
-        let prover = Prover { queries: 16 };
+        let prover = Prover { cfg: FriConfig { blowup_log2: 2, num_rounds: 1, queries: 16 } };
         let mut proof = prover.prove_fib(&air);
         // Tamper next_row path on an opening that has a next_row
         let k = proof.openings.iter().position(|o| o.next_row.is_some()).unwrap();
@@ -358,7 +376,7 @@ mod tests {
     #[test]
     fn verify_rejects_pub_input_mismatch() {
         let air = FibonacciAir::new(2,3,16);
-        let prover = Prover { queries: 8 };
+        let prover = Prover { cfg: FriConfig { blowup_log2: 2, num_rounds: 1, queries: 8 } };
         let mut proof = prover.prove_fib(&air);
         // Flip a byte in public input encoding
         if !proof.pub_input_enc.is_empty() { proof.pub_input_enc[0] ^= 1; }
